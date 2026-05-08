@@ -11,6 +11,7 @@ import IconButton from '@mui/material/IconButton';
 import DeleteIcon from '@mui/icons-material/Delete';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import '../../index.css';
 
 /* ─── Dark Cyan MUI Theme ─────────────────────────────────────── */
@@ -24,9 +25,18 @@ const darkCyanTheme = createTheme({
   typography: {
     fontFamily: '"Rajdhani", "Share Tech Mono", monospace',
   },
+  breakpoints: {
+    values: {
+      xs: 0,
+      sm: 600,
+      md: 900,
+      lg: 1200,
+      xl: 1536,
+    }
+  }
 });
 
-const GlassCard = styled(Paper)(() => ({
+const GlassCard = styled(Paper)(({ theme }) => ({
   background: 'rgba(13, 27, 42, 0.75)',
   backdropFilter: 'blur(16px)',
   WebkitBackdropFilter: 'blur(16px)',
@@ -37,6 +47,7 @@ const GlassCard = styled(Paper)(() => ({
   position: 'relative',
   overflow: 'hidden',
   transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
+  boxSizing: 'border-box',
   '&::before': {
     content: '""',
     position: 'absolute',
@@ -50,12 +61,16 @@ const GlassCard = styled(Paper)(() => ({
     borderColor: 'rgba(0, 229, 255, 0.45)',
     boxShadow: '0 0 28px rgba(0, 229, 255, 0.12)',
   },
+  [theme.breakpoints.down('sm')]: {
+    padding: '12px',
+    borderRadius: '10px'
+  },
 }));
 
-const SectionTitle = styled('h5')(() => ({
+const SectionTitle = styled('h5')(({ theme }) => ({
   fontFamily: '"Rajdhani", monospace',
   fontWeight: 700,
-  fontSize: '0.75rem',
+  fontSize: '0.88rem',
   letterSpacing: '0.18em',
   textTransform: 'uppercase',
   color: '#38b6ff',
@@ -69,8 +84,13 @@ const SectionTitle = styled('h5')(() => ({
     height: '1px',
     background: 'linear-gradient(90deg, rgba(0,229,255,0.4), transparent)',
   },
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '1rem',
+    marginBottom: 16
+  }
 }));
 
+// Make all styles responsive for mobile and desktop
 const styles = {
   root: {
     minHeight: '100vh',
@@ -83,9 +103,28 @@ const styles = {
     padding: '32px',
     fontFamily: '"Rajdhani", monospace',
     position: 'relative',
+    boxSizing: 'border-box'
+  },
+  rootMobile: {
+    minHeight: '100vh',
+    background: '#060D14',
+    backgroundImage: `
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px)
+    `,
+    backgroundSize: '28px 28px',
+    padding: '8px 0 16px 0',
+    fontFamily: '"Rajdhani", monospace',
+    position: 'relative',
+    boxSizing: 'border-box'
   },
   mainWrapper: {
-
+    maxWidth: '1280px',
+    margin: '0 auto'
+  },
+  mainWrapperMobile: {
+    width: '100%',
+    padding: '0 3vw'
   },
   topBar: {
     display: 'flex',
@@ -93,6 +132,13 @@ const styles = {
     justifyContent: 'space-between',
     marginBottom: '32px',
     padding: '0 4px',
+  },
+  topBarMobile: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '16px',
+    padding: '0 8px'
   },
   logo: {
     fontFamily: '"Rajdhani", monospace',
@@ -105,6 +151,17 @@ const styles = {
     alignItems: 'center',
     gap: '10px',
   },
+  logoMobile: {
+    fontFamily: '"Rajdhani", monospace',
+    fontWeight: 700,
+    fontSize: '1.06rem',
+    letterSpacing: '0.16em',
+    color: '#38b6ff',
+    textTransform: 'uppercase',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
   logoDot: {
     width: 8,
     height: 8,
@@ -112,6 +169,7 @@ const styles = {
     background: '#38b6ff',
     boxShadow: '0 0 10px #38b6ff',
     animation: 'pulse 2s infinite',
+    flexShrink: 0
   },
   statusBadge: {
     fontSize: '0.7rem',
@@ -121,6 +179,16 @@ const styles = {
     borderRadius: '20px',
     padding: '4px 14px',
     background: 'rgba(0,229,255,0.06)',
+    whiteSpace: 'nowrap'
+  },
+  statusBadgeMobile: {
+    fontSize: '0.62rem',
+    letterSpacing: '0.11em',
+    color: '#38b6ff',
+    border: '1px solid rgba(0,229,255,0.18)',
+    borderRadius: '16px',
+    padding: '3px 8px',
+    background: 'rgba(0,229,255,0.045)'
   },
   greetingLabel: {
     fontSize: '0.68rem',
@@ -128,6 +196,9 @@ const styles = {
     textTransform: 'uppercase',
     marginBottom: '4px',
     opacity: 0.7,
+  },
+  greetingLabelMobile: {
+    fontSize: '0.7em'
   },
   userName: {
     fontSize: '1.6rem',
@@ -137,6 +208,14 @@ const styles = {
     margin: '0 0 4px',
     lineHeight: 1.2,
   },
+  userNameMobile: {
+    fontSize: '1.13rem',
+    fontWeight: 700,
+    letterSpacing: '0.03em',
+    color: '#E0F7FA',
+    margin: '0 0 2px',
+    lineHeight: 1.15,
+  },
   userEmail: {
     fontSize: '0.78rem',
     color: '#38b6ff',
@@ -144,15 +223,41 @@ const styles = {
     marginBottom: '24px',
     opacity: 0.8,
   },
+  userEmailMobile: {
+    fontSize: '0.73rem',
+    color: '#38b6ff',
+    letterSpacing: '0.08em',
+    marginBottom: '14px',
+    opacity: 0.85,
+  },
   avatarWrapper: {
     position: 'relative',
     width: 90,
     height: 90,
     margin: '0 auto 24px',
+    cursor: 'pointer'
+  },
+  avatarWrapperMobile: {
+    position: 'relative',
+    width: 62,
+    height: 62,
+    margin: '0 auto 12px',
+    cursor: 'pointer'
   },
   avatarRing: {
     position: 'absolute',
     inset: -4,
+    borderRadius: '50%',
+    background: 'conic-gradient(#38b6ff, #006064, #38b6ff)',
+    animation: 'spin 4s linear infinite',
+    zIndex: 0,
+  },
+  avatarRingMobile: {
+    position: 'absolute',
+    left: '-4px',
+    top: '-4px',
+    right: '-4px',
+    bottom: '-4px',
     borderRadius: '50%',
     background: 'conic-gradient(#38b6ff, #006064, #38b6ff)',
     animation: 'spin 4s linear infinite',
@@ -165,10 +270,25 @@ const styles = {
     background: '#060D14',
     zIndex: 1,
   },
+  avatarInnerMobile: {
+    position: 'absolute',
+    left: '2px',
+    top: '2px',
+    right: '2px',
+    bottom: '2px',
+    borderRadius: '50%',
+    background: '#060D14',
+    zIndex: 1,
+  },
   statRow: {
     display: 'flex',
     gap: '12px',
     marginTop: '20px',
+  },
+  statRowMobile: {
+    display: 'flex',
+    gap: '8px',
+    marginTop: '11px'
   },
   statBox: {
     flex: 1,
@@ -178,6 +298,14 @@ const styles = {
     padding: '12px',
     textAlign: 'center',
   },
+  statBoxMobile: {
+    flex: 1,
+    background: 'rgba(0,229,255,0.08)',
+    border: '1px solid rgba(0,229,255,0.14)',
+    borderRadius: '8px',
+    padding: '7px',
+    textAlign: 'center',
+  },
   statNumber: {
     fontSize: '1.4rem',
     fontWeight: 700,
@@ -185,11 +313,24 @@ const styles = {
     lineHeight: 1,
     marginBottom: '4px',
   },
+  statNumberMobile: {
+    fontSize: '1.02rem',
+    fontWeight: 700,
+    color: '#38b6ff',
+    lineHeight: 1,
+    marginBottom: '2.5px'
+  },
   statLabel: {
     fontSize: '0.62rem',
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     opacity: 0.55,
+  },
+  statLabelMobile: {
+    fontSize: '0.58rem',
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    opacity: 0.59
   },
   activityDot: {
     width: 6,
@@ -199,6 +340,16 @@ const styles = {
     boxShadow: '0 0 6px #38b6ff',
     display: 'inline-block',
     marginRight: 8,
+    animation: 'pulse 1.8s infinite',
+  },
+  activityDotMobile: {
+    width: 5,
+    height: 5,
+    borderRadius: '50%',
+    background: '#38b6ff',
+    boxShadow: '0 0 4px #38b6ff',
+    display: 'inline-block',
+    marginRight: 5,
     animation: 'pulse 1.8s infinite',
   },
   contactRow: {
@@ -214,10 +365,21 @@ const styles = {
     color: '#E0F7FA',
     wordBreak: 'break-all'
   },
+  contactNameMobile: {
+    fontSize: '0.95rem',
+    color: '#E0F7FA',
+    wordBreak: 'break-all'
+  },
   contactEmail: {
     fontSize: '0.84rem',
     color: '#38b6ff',
     opacity: 0.7,
+    wordBreak: 'break-all'
+  },
+  contactEmailMobile: {
+    fontSize: '0.74rem',
+    color: '#38b6ff',
+    opacity: 0.72,
     wordBreak: 'break-all'
   },
   deleteBtn: {
@@ -233,12 +395,28 @@ const styles = {
     fontSize: '0.95rem',
     letterSpacing: '0.08em'
   },
+  noContactsMobile: {
+    color: '#80DEEA',
+    opacity: 0.72,
+    textAlign: 'center',
+    padding: '8px 0',
+    fontSize: '0.88rem',
+    letterSpacing: '0.07em'
+  },
   contactItemContainer: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottom: '1px solid rgba(0,229,255,0.07)',
     padding: '10px 0',
+    width: '100%'
+  },
+  contactItemContainerMobile: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottom: '1px solid rgba(0,229,255,0.08)',
+    padding: '7px 0',
     width: '100%'
   },
   contactInfoCol: {
@@ -248,6 +426,13 @@ const styles = {
     minWidth: 0,
     marginRight: 10,
   },
+  contactInfoColMobile: {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+    minWidth: 0,
+    marginRight: 7,
+  },
   cyanButton: {
     background: '#38b6ff',
     color: '#060D14',
@@ -255,6 +440,20 @@ const styles = {
     textTransform: 'uppercase',
     fontFamily: '"Rajdhani", monospace',
     letterSpacing: '0.1em',
+    '&:hover': {
+      background: '#26C6DA'
+    }
+  },
+  cyanButtonMobile: {
+    background: '#38b6ff',
+    color: '#060D14',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    fontFamily: '"Rajdhani", monospace',
+    letterSpacing: '0.1em',
+    fontSize: '0.96em',
+    paddingTop: '10px',
+    paddingBottom: '10px',
     '&:hover': {
       background: '#26C6DA'
     }
@@ -275,6 +474,24 @@ const styles = {
       color: '#38b6ff'
     }
   },
+  inputDarkMobile: {
+    '& .MuiInputBase-root': {
+      background: '#142037',
+      color: '#E0F7FA',
+      borderRadius: 1,
+      fontSize: '0.96em'
+    },
+    '& .MuiOutlinedInput-notchedOutline': {
+      borderColor: '#38b6ff'
+    },
+    '& label': {
+      color: '#80DEEA',
+      fontSize: '0.99em'
+    },
+    '& label.Mui-focused': {
+      color: '#38b6ff'
+    }
+  },
   contactAvatar: {
     width: 36,
     height: 36,
@@ -285,11 +502,25 @@ const styles = {
     color: '#E0F7FA',
     border: '1.5px solid rgba(0,229,255,0.16)',
   },
+  contactAvatarMobile: {
+    width: 28,
+    height: 28,
+    fontSize: '0.87rem',
+    fontWeight: 700,
+    background: 'linear-gradient(135deg,rgb(0, 107, 169), #38b6ff)',
+    marginRight: '7px',
+    color: '#E0F7FA',
+    border: '1.3px solid rgba(0,229,255,0.14)',
+  },
   contactAvatarWrapper: {
     display: 'flex',
     alignItems: 'center',
-    
     minWidth: 36
+  },
+  contactAvatarWrapperMobile: {
+    display: 'flex',
+    alignItems: 'center',
+    minWidth: 28
   }
 };
 
@@ -302,7 +533,7 @@ const getGreeting = () => {
 };
 
 /* ─── AddContact  ─────────────────────────────────────────────── */
-function AddContactDark({ onAdd }) {
+function AddContactDark({ onAdd, isMobile }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -318,7 +549,15 @@ function AddContactDark({ onAdd }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: isMobile ? 11 : 18
+      }}
+    >
       <TextField
         label="Name"
         value={name}
@@ -326,7 +565,7 @@ function AddContactDark({ onAdd }) {
         variant="outlined"
         fullWidth
         size="small"
-        sx={styles.inputDark}
+        sx={isMobile ? styles.inputDarkMobile : styles.inputDark}
         InputLabelProps={{ style: { fontFamily: '"Rajdhani", monospace' } }}
         inputProps={{ style: { fontFamily: '"Rajdhani", monospace' } }}
         required
@@ -339,7 +578,7 @@ function AddContactDark({ onAdd }) {
         fullWidth
         size="small"
         type="email"
-        sx={styles.inputDark}
+        sx={isMobile ? styles.inputDarkMobile : styles.inputDark}
         InputLabelProps={{ style: { fontFamily: '"Rajdhani", monospace' } }}
         inputProps={{ style: { fontFamily: '"Rajdhani", monospace' } }}
         required
@@ -348,7 +587,7 @@ function AddContactDark({ onAdd }) {
         variant="contained"
         type="submit"
         disabled={submitting}
-        sx={styles.cyanButton}
+        sx={isMobile ? styles.cyanButtonMobile : styles.cyanButton}
       >
         {submitting ? 'Adding...' : 'Add Contact'}
       </Button>
@@ -377,6 +616,10 @@ function HomePage() {
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef(null);
   const greeting = getGreeting();
+
+  // Responsive hooks
+  const isMobile = useMediaQuery("(max-width: 767px)");
+  const isTablet = useMediaQuery("(min-width: 768px) and (max-width: 1199px)");
 
   const BASE_URL = 'http://localhost:5000';
 
@@ -457,9 +700,11 @@ function HomePage() {
       minHeight: '100vh', background: '#060D14', display: 'flex',
       alignItems: 'center', justifyContent: 'center',
       color: '#38b6ff', fontFamily: 'Rajdhani, monospace',
-      letterSpacing: '0.2em', fontSize: '0.9rem',
+      letterSpacing: '0.2em', fontSize: isMobile ? '0.98rem' : '0.9rem',
+      paddingLeft: isMobile ? '12px' : undefined,
+      paddingRight: isMobile ? '12px' : undefined
     }}>
-      <span style={styles.activityDot} />
+      <span style={isMobile ? styles.activityDotMobile : styles.activityDot} />
       INITIALIZING DASHBOARD...
     </div>
   );
@@ -468,9 +713,33 @@ function HomePage() {
     ? user.name.split(' ').map((n) => n[0].toUpperCase()).join('')
     : 'X';
 
+  // Responsive grid props
+  //  - mobile: stack all
+  //  - tablet: 2 cards per row (Profile & Invite), then Contact List full width
+  //  - desktop: Profile (4cols), Invite (8cols), List (4cols)
+  const getCardGridProps = () => {
+    if (isMobile) return {
+      profile: { xs: 12, style: { marginBottom: '15px' } },
+      add: { xs: 12, style: { marginBottom: '15px' } },
+      list: { xs: 12 }
+    };
+    if (isTablet) return {
+      profile: { md: 6, style: {} },
+      add: { md: 6, style: {} },
+      list: { md: 12 }
+    };
+    return {
+      // Desktop layout
+      profile: { md: 4, style: {} },
+      add: { md: 8, style: {} },
+      list: { md: 4 }
+    };
+  };
+  const gridProps = getCardGridProps();
+
   return (
     <ThemeProvider theme={darkCyanTheme}>
-      {/* Keyframe animations injected via style tag */}
+      {/* Responsive and accessibility CSS-in-JS */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap');
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -482,46 +751,66 @@ function HomePage() {
           from { opacity: 0; transform: translateY(16px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        /* Fade-up animation for cards */
         .dash-card { animation: fadeUp 0.5s ease both; }
-        .dash-card:nth-child(1) { animation-delay: 0.05s; }
-        .dash-card:nth-child(2) { animation-delay: 0.15s; }
-        .dash-card:nth-child(3) { animation-delay: 0.25s; }
-        .dash-card{width: 30% !important;}
+        .dash-card:nth-child(1) { animation-delay: 0.07s; }
+        .dash-card:nth-child(2) { animation-delay: 0.13s; }
+        .dash-card:nth-child(3) { animation-delay: 0.20s; }
+        /* Responsive tweaks: */
+        @media (max-width: 767px) {
+          .dash-card { width: 100% !important; max-width: none !important; margin: 0 0 12px 0 !important;}
+        }
+        @media (min-width: 768px) and (max-width: 1199px) {
+          .dash-card { width: 100% !important; max-width: none !important;}
+        }
+        @media (min-width: 1200px) {
+          .dash-card { width: auto !important;}
+        }
       `}</style>
-      <Box sx={styles.root}>
-        <div style={styles.mainWrapper}>
+      <Box sx={isMobile ? styles.rootMobile : styles.root}>
+        <div style={isMobile ? styles.mainWrapperMobile : styles.mainWrapper}>
           {/* ── Top Bar ── */}
-          <div style={styles.topBar}>
-            <div style={styles.logo}>
+          <div style={isMobile ? styles.topBarMobile : styles.topBar}>
+            <div style={isMobile ? styles.logoMobile : styles.logo}>
               <div style={styles.logoDot} />
               MEETHUB DASHBOARD
             </div>
-            <div style={styles.statusBadge}>● SYSTEM ONLINE</div>
+            <div style={isMobile ? styles.statusBadgeMobile : styles.statusBadge}>● SYSTEM ONLINE</div>
           </div>
-          <Grid container spacing={3}>
+          <Grid container spacing={isMobile ? 1.3 : 3}>
             {/* ── Profile Card ── */}
-            <Grid item xs={12} md={4} className="dash-card">
+            <Grid item {...gridProps.profile} className="dash-card" style={gridProps.profile?.style}>
               <GlassCard>
                 <SectionTitle>Profile</SectionTitle>
                 {user ? (
                   <>
                     <div style={{ textAlign: 'center' }}>
                       {/* Spinning ring avatar */}
-                      <div style={styles.avatarWrapper} onClick={handleAvatarClick} title="Change photo">
-                        <div style={styles.avatarRing} />
-                        <div style={styles.avatarInner} />
+                      <div
+                        style={
+                          isMobile
+                            ? styles.avatarWrapperMobile
+                            : styles.avatarWrapper
+                        }
+                        onClick={handleAvatarClick}
+                        title="Change photo"
+                        tabIndex={0}
+                        onKeyDown={e => { if (e.key === 'Enter') handleAvatarClick(); }}
+                        role="button"
+                        aria-label="Upload profile picture"
+                      >
+                        <div style={isMobile ? styles.avatarRingMobile : styles.avatarRing} />
+                        <div style={isMobile ? styles.avatarInnerMobile : styles.avatarInner} />
                         <Avatar
                           alt={user.name}
                           src={user?.profile_picture && !imageError ? `${BASE_URL}${user.profile_picture}` : undefined}
                           sx={{
-                            width: 82,
-                            height: 82,
+                            width: isMobile ? 54 : 82,
+                            height: isMobile ? 54 : 82,
                             position: 'absolute',
-                            top: 4,
-                            left: 4,
+                            top: isMobile ? 4 : 4,
+                            left: isMobile ? 4 : 4,
                             zIndex: 2,
-                            fontSize: '1.5rem',
+                            fontSize: isMobile ? '1rem' : '1.5rem',
                             fontFamily: 'Rajdhani, monospace',
                             fontWeight: 700,
                             background: 'linear-gradient(135deg,rgb(0, 93, 147), #38b6ff)',
@@ -535,13 +824,12 @@ function HomePage() {
                           {(!user?.profile_picture || imageError) && initials}
                         </Avatar>
                       </div>
-
-                      <div style={{ ...styles.greetingLabel, color: greeting.color }}>
+                      <div style={{ ...styles.greetingLabel, ...(isMobile && styles.greetingLabelMobile), color: greeting.color }}>
                         {greeting.label}
                       </div>
-                      <h3 style={styles.userName}>{user.name}</h3>
+                      <h3 style={isMobile ? styles.userNameMobile : styles.userName}>{user.name}</h3>
                       {user.email && (
-                        <div style={styles.userEmail}>{user.email}</div>
+                        <div style={isMobile ? styles.userEmailMobile : styles.userEmail}>{user.email}</div>
                       )}
                     </div>
                     <input
@@ -551,27 +839,31 @@ function HomePage() {
                       accept="image/jpeg,image/png"
                       onChange={handleFileChange}
                     />
-                    <div style={styles.statRow}>
-                      <div style={styles.statBox}>
-                        <div style={styles.statNumber}>{contacts.length}</div>
-                        <div style={styles.statLabel}>Contacts</div>
+                    <div style={isMobile ? styles.statRowMobile : styles.statRow}>
+                      <div style={isMobile ? styles.statBoxMobile : styles.statBox}>
+                        <div style={isMobile ? styles.statNumberMobile : styles.statNumber}>{contacts.length}</div>
+                        <div style={isMobile ? styles.statLabelMobile : styles.statLabel}>Contacts</div>
                       </div>
-                      <div style={styles.statBox}>
-                        <div style={styles.statNumber}>{new Date().getDate()}</div>
-                        <div style={styles.statLabel}>Today</div>
+                      <div style={isMobile ? styles.statBoxMobile : styles.statBox}>
+                        <div style={isMobile ? styles.statNumberMobile : styles.statNumber}>{new Date().getDate()}</div>
+                        <div style={isMobile ? styles.statLabelMobile : styles.statLabel}>Today</div>
                       </div>
-                      <div style={styles.statBox}>
-                        <div style={{ ...styles.statNumber, fontSize: '0.85rem', paddingTop: 4 }}>
-                          <span style={styles.activityDot} />
+                      <div style={isMobile ? styles.statBoxMobile : styles.statBox}>
+                        <div style={{
+                          ...(isMobile ? styles.statNumberMobile : styles.statNumber),
+                          fontSize: isMobile ? '0.73rem' : '0.85rem',
+                          paddingTop: isMobile ? 2 : 4
+                        }}>
+                          <span style={isMobile ? styles.activityDotMobile : styles.activityDot} />
                           ON
                         </div>
-                        <div style={styles.statLabel}>Status</div>
+                        <div style={isMobile ? styles.statLabelMobile : styles.statLabel}>Status</div>
                       </div>
                     </div>
                   </>
                 ) : (
-                  <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                    <div style={{ fontSize: '0.85rem', color: '#4DD0E1', marginBottom: 16 }}>
+                  <div style={{ textAlign: 'center', padding: isMobile ? '15px 0' : '24px 0' }}>
+                    <div style={{ fontSize: isMobile ? '0.85rem' : '0.92rem', color: '#4DD0E1', marginBottom: 16 }}>
                       Not authenticated
                     </div>
                     <a
@@ -580,13 +872,14 @@ function HomePage() {
                         color: '#38b6ff',
                         border: '1px solid rgba(0,229,255,0.4)',
                         borderRadius: 8,
-                        padding: '8px 20px',
+                        padding: isMobile ? '7px 16px' : '8px 20px',
                         textDecoration: 'none',
-                        fontSize: '0.8rem',
+                        fontSize: isMobile ? '0.95rem' : '0.8rem',
                         letterSpacing: '0.12em',
                         textTransform: 'uppercase',
                         background: 'rgba(0,229,255,0.07)',
                         transition: 'background 0.2s',
+                        display: 'inline-block'
                       }}
                     >
                       Login →
@@ -596,35 +889,43 @@ function HomePage() {
               </GlassCard>
             </Grid>
             {/* ── Add Contact Card ── */}
-            <Grid item xs={12} md={10} className="dash-card">
+            <Grid item {...gridProps.add} className="dash-card" style={gridProps.add?.style}>
               <GlassCard>
                 <SectionTitle>Invite Friends</SectionTitle>
-                <AddContactDark onAdd={handleAddContact} />
+                <AddContactDark onAdd={handleAddContact} isMobile={isMobile} />
               </GlassCard>
             </Grid>
             {/* ── Contact List Card ── */}
-            <Grid item xs={12} md={4} className="dash-card">
+            <Grid item {...gridProps.list} className="dash-card">
               <GlassCard>
                 <SectionTitle>Contact List</SectionTitle>
                 {contacts.length === 0 ? (
-                  <div style={styles.noContacts}>Contact not available</div>
+                  <div style={isMobile ? styles.noContactsMobile : styles.noContacts}>Contact not available</div>
                 ) : (
                   <div>
                     {contacts.map((contact) => (
-                      <div key={contact._id || contact.id} style={styles.contactItemContainer}>
+                      <div
+                        key={contact._id || contact.id}
+                        style={isMobile ? styles.contactItemContainerMobile : styles.contactItemContainer}
+                      >
                         {/* Contact avatar and info */}
-                        <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                          <div style={styles.contactAvatarWrapper}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          flex: 1,
+                          minWidth: 0
+                        }}>
+                          <div style={isMobile ? styles.contactAvatarWrapperMobile : styles.contactAvatarWrapper}>
                             <Avatar
-                              sx={styles.contactAvatar}
+                              sx={isMobile ? styles.contactAvatarMobile : styles.contactAvatar}
                               alt={contact.name}
                             >
                               {getContactInitials(contact)}
                             </Avatar>
                           </div>
-                          <div style={styles.contactInfoCol}>
-                            <span style={styles.contactName}>{contact.name}</span>
-                            <span style={styles.contactEmail}>{contact.email}</span>
+                          <div style={isMobile ? styles.contactInfoColMobile : styles.contactInfoCol}>
+                            <span style={isMobile ? styles.contactNameMobile : styles.contactName}>{contact.name}</span>
+                            <span style={isMobile ? styles.contactEmailMobile : styles.contactEmail}>{contact.email}</span>
                           </div>
                         </div>
                         <IconButton
@@ -649,7 +950,7 @@ function HomePage() {
           open={snackbar.open}
           autoHideDuration={6000}
           onClose={() => setSnackbar({ ...snackbar, open: false })}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          anchorOrigin={{ vertical: 'bottom', horizontal: isMobile ? 'center' : 'right' }}
         >
           <Alert
             onClose={() => setSnackbar({ ...snackbar, open: false })}
@@ -664,6 +965,9 @@ function HomePage() {
               fontFamily: 'Rajdhani, monospace',
               letterSpacing: '0.06em',
               '& .MuiAlert-icon': { color: snackbar.severity === 'success' ? '#38b6ff' : '#FF5252' },
+              fontSize: isMobile ? '0.95em' : '1.04em',
+              margin: isMobile ? '0 6px' : undefined,
+              minWidth: isMobile ? '220px' : undefined
             }}
           >
             {snackbar.message}
