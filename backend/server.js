@@ -1,0 +1,895 @@
+const express = require("express");
+const mysql = require("mysql2");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const bcrypt = require("bcryptjs");
+const session = require("express-session");
+const http = require("http");
+const { Server } = require("socket.io");
+const nodemailer = require("nodemailer");
+const multer = require("multer");
+const path = require("path");
+const rateLimit = require("express-rate-limit");
+require("dotenv").config();
+
+const { ipKeyGenerator } = require("express-rate-limit");
+// Polyfill for fetch if needed
+if (typeof fetch !== "function") {
+  global.fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+}
+
+const app = express();
+const server = http.createServer(app);
+
+// MySQL Connection, using .env if available
+const db = mysql.createConnection({
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASS || "",
+  database: process.env.DB_name || "meeting",
+});
+
+db.connect((err) => {
+  if (err) {
+    console.error("❌ MySQL Connection Error:", err);
+    process.exit(1);
+  }
+  console.log("✅ MySQL Connected...");
+});
+
+// Nodemailer Setup
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+// Ensure Uploads directory exists
+const fs = require("fs");
+const uploadsDir = path.join(__dirname, "Uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+
+// Multer Setup for File Uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const fileTypes = /jpeg|jpg|png|mp4|mov|avi/;
+    const extname = fileTypes.test(path.extname(file.originalname).toLowerCase());
+    // Accept correct mimetypes for images and videos
+    const validMime = /image\/jpeg|image\/jpg|image\/png|video\/mp4|video\/quicktime|video\/avi/.test(file.mimetype.toLowerCase());
+    if (extname && validMime) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only images (JPEG, JPG, PNG) and videos (MP4, MOV, AVI) are allowed"));
+    }
+  },
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB for videos
+});
+
+app.use('/Uploads', express.static(uploadsDir));
+
+// Middlewares
+const expressSession = session({
+  secret: process.env.JWT_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { httpOnly: true, secure: false, maxAge: 3600000 },
+});
+
+app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+app.use(bodyParser.json());
+app.use(expressSession);
+
+// Socket.IO Setup
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
+const onlineUsers = new Map();
+
+io.on("connection", (socket) => {
+  console.log("⚡ Socket connected:", socket.id);
+
+  socket.on("registerUser", (userData = {}) => {
+    if (!userData.email) return;
+    socket.userEmail = userData.email;
+    onlineUsers.set(userData.email, socket.id);
+    socket.join(userData.email);
+    console.log(`🟢 User registered: ${userData.email}`);
+
+    db.query(
+      "UPDATE messages SET status = 'delivered' WHERE receiver_email = ? AND status = 'sent'",
+      [userData.email],
+      (err) => {
+        if (err) {
+          console.error("Error updating message status to delivered:", err);
+          return;
+        }
+        db.query(
+          "SELECT id, status FROM messages WHERE receiver_email = ? AND status = 'delivered'",
+          [userData.email],
+          (err, rows) => {
+            if (err) return;
+            rows.forEach((msg) => {
+              io.to(userData.email).emit("messageStatusUpdate", {
+                messageId: msg.id,
+                status: msg.status,
+              });
+            });
+          }
+        );
+      }
+    );
+  });
+
+  socket.on("sendMessage", (data) => {
+    const { sender_email, receiver_email, message } = data || {};
+    if (!sender_email || !receiver_email || typeof message !== "string") {
+      return socket.emit("error", { message: "Invalid message data" });
+    }
+
+    db.query(
+      "INSERT INTO messages (sender_email, receiver_email, message, created_at, status) VALUES (?, ?, ?, NOW(), 'sent')",
+      [sender_email, receiver_email, message],
+      (err, result) => {
+        if (err) {
+          console.error("Error saving message:", err);
+          return socket.emit("error", { message: "Database error" });
+        }
+
+        const savedMessage = {
+          id: result.insertId,
+          sender_email,
+          receiver_email,
+          message,
+          created_at: new Date(),
+          status: "sent",
+        };
+
+        db.query("SELECT id, name FROM users WHERE email = ?", [sender_email], (nameErr, senderRes) => {
+          if (nameErr || !Array.isArray(senderRes) || senderRes.length === 0) {
+            console.error("Error fetching sender details");
+            io.to(sender_email).emit("receiveMessage", savedMessage);
+            if (onlineUsers.has(receiver_email)) {
+              savedMessage.status = "delivered";
+              io.to(receiver_email).emit("receiveMessage", savedMessage);
+              db.query("UPDATE messages SET status = 'delivered' WHERE id = ?", [savedMessage.id]);
+              io.to(sender_email).emit("messageStatusUpdate", {
+                messageId: savedMessage.id,
+                status: "delivered",
+              });
+            }
+            return;
+          }
+
+          const sender_name = senderRes[0].name;
+
+          db.query("SELECT id FROM users WHERE email = ?", [receiver_email], (recErr, receiverRes) => {
+            if (recErr || !Array.isArray(receiverRes) || receiverRes.length === 0) {
+              console.error("Error fetching receiver details");
+              io.to(sender_email).emit("receiveMessage", savedMessage);
+              if (onlineUsers.has(receiver_email)) {
+                savedMessage.status = "delivered";
+                io.to(receiver_email).emit("receiveMessage", savedMessage);
+                db.query("UPDATE messages SET status = 'delivered' WHERE id = ?", [savedMessage.id]);
+                io.to(sender_email).emit("messageStatusUpdate", {
+                  messageId: savedMessage.id,
+                  status: "delivered",
+                });
+              }
+              return;
+            }
+
+            const receiver_id = receiverRes[0].id;
+
+            db.query(
+              "SELECT id FROM contacts WHERE user_id = ? AND email = ?",
+              [receiver_id, sender_email],
+              (contactErr, contactRes = []) => {
+                if (contactErr) {
+                  console.error("Error checking contact");
+                  io.to(sender_email).emit("receiveMessage", savedMessage);
+                  if (onlineUsers.has(receiver_email)) {
+                    savedMessage.status = "delivered";
+                    io.to(receiver_email).emit("receiveMessage", savedMessage);
+                    db.query("UPDATE messages SET status = 'delivered' WHERE id = ?", [savedMessage.id]);
+                    io.to(sender_email).emit("messageStatusUpdate", {
+                      messageId: savedMessage.id,
+                      status: "delivered",
+                    });
+                  }
+                  return;
+                }
+
+                if (contactRes.length > 0) {
+                  io.to(sender_email).emit("receiveMessage", savedMessage);
+                  if (onlineUsers.has(receiver_email)) {
+                    savedMessage.status = "delivered";
+                    io.to(receiver_email).emit("receiveMessage", savedMessage);
+                    db.query("UPDATE messages SET status = 'delivered' WHERE id = ?", [savedMessage.id]);
+                    io.to(sender_email).emit("messageStatusUpdate", {
+                      messageId: savedMessage.id,
+                      status: "delivered",
+                    });
+                  }
+                } else {
+                  db.query(
+                    "INSERT INTO contacts (user_id, name, email) VALUES (?, ?, ?)",
+                    [receiver_id, sender_name, sender_email],
+                    (addErr, addRes) => {
+                      if (addErr) {
+                        console.error("Error adding contact:", addErr);
+                      } else {
+                        io.to(receiver_email).emit("newContactAdded", {
+                          id: addRes.insertId,
+                          name: sender_name,
+                          email: sender_email,
+                        });
+                      }
+                      io.to(sender_email).emit("receiveMessage", savedMessage);
+                      if (onlineUsers.has(receiver_email)) {
+                        savedMessage.status = "delivered";
+                        io.to(receiver_email).emit("receiveMessage", savedMessage);
+                        db.query("UPDATE messages SET status = 'delivered' WHERE id = ?", [savedMessage.id]);
+                        io.to(sender_email).emit("messageStatusUpdate", {
+                          messageId: savedMessage.id,
+                          status: "delivered",
+                        });
+                      }
+                    }
+                  );
+                }
+
+                console.log(`📨 Message sent from ${sender_email} to ${receiver_email}`);
+              }
+            );
+          });
+        });
+      }
+    );
+  });
+
+  socket.on("messagesRead", ({ sender_email, receiver_email }) => {
+    if (!sender_email || !receiver_email) return;
+    db.query(
+      "UPDATE messages SET status = 'read' WHERE sender_email = ? AND receiver_email = ? AND status IN ('sent', 'delivered')",
+      [sender_email, receiver_email],
+      (err) => {
+        if (err) {
+          console.error("Error updating message status to read:", err);
+          return;
+        }
+        db.query(
+          "SELECT id, status FROM messages WHERE sender_email = ? AND receiver_email = ? AND status = 'read'",
+          [sender_email, receiver_email],
+          (err, rows = []) => {
+            if (err) return;
+            rows.forEach((msg) => {
+              io.to(receiver_email).emit("messageStatusUpdate", {
+                messageId: msg.id,
+                status: msg.status,
+              });
+              io.to(sender_email).emit("messageStatusUpdate", {
+                messageId: msg.id,
+                status: msg.status,
+              });
+            });
+          }
+        );
+      }
+    );
+  });
+
+  socket.on("typing", ({ sender_email, receiver_email }) => {
+    if (onlineUsers.has(receiver_email)) {
+      io.to(receiver_email).emit("typing", { sender_email });
+    }
+  });
+
+  socket.on("stopTyping", ({ sender_email, receiver_email }) => {
+    if (onlineUsers.has(receiver_email)) {
+      io.to(receiver_email).emit("stopTyping", { sender_email });
+    }
+  });
+
+  socket.on("startCall", ({ to, offer, from }) => {
+    if (!to || !offer || !from) return;
+    io.to(to).emit("incomingCall", { from, offer });
+    console.log(`📹 Call initiated from ${from} to ${to}`);
+  });
+
+  socket.on("callAccepted", ({ to, answer }) => {
+    if (!to || !answer) return;
+    io.to(to).emit("callAccepted", { answer });
+    console.log(`📹 Call accepted, answer sent to ${to}`);
+  });
+
+  socket.on("iceCandidate", ({ to, candidate }) => {
+    if (!to || !candidate) return;
+    io.to(to).emit("iceCandidate", { candidate });
+    console.log(`📹 ICE candidate sent to ${to}`);
+  });
+
+  socket.on("toggleVideo", ({ to, status }) => {
+    if (!to) return;
+    io.to(to).emit("toggleVideo", { status });
+    console.log(`📹 Video toggle status ${status} sent to ${to}`);
+  });
+
+  socket.on("endCall", ({ to }) => {
+    if (!to) return;
+    io.to(to).emit("endCall");
+    console.log(`📹 Call ended, notified ${to}`);
+  });
+
+  socket.on("callRejected", ({ to }) => {
+    if (!to) return;
+    io.to(to).emit("callRejected");
+    console.log(`📹 Call rejected, notified ${to}`);
+  });
+
+  socket.on("disconnect", () => {
+    if (socket.userEmail) {
+      onlineUsers.delete(socket.userEmail);
+      console.log(`❌ User disconnected: ${socket.userEmail}`);
+    }
+  });
+});
+
+// OTP Helper
+const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
+
+// Send OTP Email
+const sendOTPEmail = async (email, otp) => {
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Your OTP for Signup",
+      text: `Your OTP for signup is: ${otp}. It is valid for 2 minutes.`,
+    };
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 OTP sent to ${email}`);
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+    throw new Error("Failed to send OTP email");
+  }
+};
+
+// USER ROUTES
+app.post("/get-otp", async (req, res) => {
+  const { name, email } = req.body;
+  if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+
+  const otp = generateOTP();
+  const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
+
+  db.query("SELECT * FROM users WHERE email=?", [email], async (err, rows = []) => {
+    if (err) return res.status(500).json({ message: "Database error" });
+
+    try {
+      await sendOTPEmail(email, otp);
+
+      if (rows.length === 0) {
+        db.query(
+          "INSERT INTO users (name, email, otp, otp_expires_at) VALUES (?, ?, ?, ?)",
+          [name, email, otp, expiresAt],
+          (err) => {
+            if (err) return res.status(500).json({ message: "Database error" });
+            res.json({ message: "OTP sent to your email" });
+          }
+        );
+      } else {
+        db.query(
+          "UPDATE users SET otp=?, otp_expires_at=? WHERE email=?",
+          [otp, expiresAt, email],
+          (err) => {
+            if (err) return res.status(500).json({ message: "Database error" });
+            res.json({ message: "OTP resent to your email" });
+          }
+        );
+      }
+    } catch (emailError) {
+      res.status(500).json({ message: "Failed to send OTP email" });
+    }
+  });
+});
+
+app.post("/verify-otp", (req, res) => {
+  const { email, otp } = req.body;
+  db.query(
+    "SELECT * FROM users WHERE email=? AND otp=? AND otp_expires_at > NOW()",
+    [email, otp],
+    (err, result = []) => {
+      if (err) return res.status(500).json({ message: "Database error" });
+      if (result.length > 0) res.json({ message: "OTP verified" });
+      else res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+  );
+});
+
+app.post("/register", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password)
+    return res.status(400).json({ message: "Email and password required" });
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  db.query("SELECT * FROM users WHERE email=?", [email], (err, result = []) => {
+    if (err) return res.status(500).json({ message: "Database error" });
+    if (result.length > 0 && result[0].password)
+      return res.status(400).json({ message: "Email already registered" });
+
+    db.query(
+      "UPDATE users SET password=?, otp=NULL, otp_expires_at=NULL WHERE email=?",
+      [hashedPassword, email],
+      (err2) => {
+        if (err2) return res.status(500).json({ message: "Database error" });
+        res.json({ message: "User registered successfully" });
+      }
+    );
+  });
+});
+
+app.post("/check-email", async (req, res) => {
+  const { email } = req.body;
+  db.query("SELECT id FROM users WHERE email = ?", [email], (err, rows = []) => {
+    if (err) return res.status(500).json({ message: "Database error" });
+    if (rows.length > 0) {
+      return res.json({ exists: true });
+    }
+    return res.json({ exists: false });
+  });
+});
+
+app.post("/login", (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password)
+    return res.status(400).json({ message: "Email and password required" });
+
+  db.query("SELECT * FROM users WHERE email=?", [email], async (err, result = []) => {
+    if (err) return res.status(500).json({ message: "Database error" });
+    if (!Array.isArray(result) || result.length === 0) return res.status(400).json({ message: "User not found" });
+
+    const isMatch = await bcrypt.compare(password, result[0].password ?? "");
+    if (!isMatch) return res.status(400).json({ message: "Invalid password" });
+
+    req.session.user = {
+      id: result[0].id,
+      name: result[0].name,
+      email: result[0].email,
+      profile_picture: result[0].profile_picture,
+    };
+
+    req.session.save(() => {
+      console.log("✅ Session saved for:", req.session.user.email);
+      res.json({ message: "Login successful", user: req.session.user });
+    });
+  });
+});
+
+app.get("/me", (req, res) => {
+  if (req.session && req.session.user) res.json({ loggedIn: true, user: req.session.user });
+  else res.json({ loggedIn: false });
+});
+
+app.post("/logout", (req, res) => {
+  if (req.session) {
+    req.session.destroy((err) => {
+      if (err) return res.status(500).json({ message: "Logout failed" });
+      res.clearCookie("connect.sid");
+      res.json({ message: "Logout successful" });
+    });
+  } else res.json({ message: "No active session" });
+});
+
+// File Upload Routes
+app.post("/upload-profile-picture", upload.single("profilePicture"), (req, res) => {
+  if (!req.session.user) return res.status(401).json({ message: "Unauthorized" });
+  if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+  const filePath = `/Uploads/${req.file.filename}`;
+  db.query(
+    "UPDATE users SET profile_picture = ? WHERE id = ?",
+    [filePath, req.session.user.id],
+    (err) => {
+      if (err) return res.status(500).json({ message: "Database error" });
+      req.session.user.profile_picture = filePath;
+      res.json({ message: "Profile picture updated", profile_picture: filePath });
+    }
+  );
+});
+
+app.post("/upload-group-avatar", upload.single("groupAvatar"), (req, res) => {
+  if (!req.session.user) return res.status(401).json({ message: "Unauthorized" });
+  if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+  const filePath = `/Uploads/${req.file.filename}`;
+  res.json({ avatar: filePath });
+});
+
+// GROUPS ROUTES
+app.post("/groups/create", (req, res) => {
+  if (!req.session.user) return res.status(401).json({ message: "Unauthorized" });
+
+  const { name, members, avatar } = req.body;
+
+  if (!name || !Array.isArray(members) || members.length === 0) {
+    return res.status(400).json({ message: "Group name and members required" });
+  }
+
+  console.log("Creating group:", { name, members, avatar });
+
+  // Insert group
+  db.query(
+    "INSERT INTO groups (name, avatar, creator_id) VALUES (?, ?, ?)",
+    [name, avatar || null, req.session.user.id],
+    (err, result) => {
+      if (err) {
+        console.error("Error creating group:", err);
+        return res.status(500).json({ message: "Failed to create group" });
+      }
+
+      const groupId = result.insertId;
+
+      // Add creator to group members
+      const allMembers = [
+        ...members,
+        { email: req.session.user.email, name: req.session.user.name }
+      ];
+
+      // Process each member
+      allMembers.forEach(member => {
+        const { email, name } = member;
+
+        // Check if user exists
+        db.query("SELECT id FROM users WHERE email = ?", [email], (err, userRows = []) => {
+          if (err) {
+            console.error("Error checking user:", err);
+            return;
+          }
+
+          if (userRows.length > 0) {
+            // User exists, add to group_members
+            const userId = userRows[0].id;
+            db.query(
+              "INSERT IGNORE INTO group_members (group_id, user_id) VALUES (?, ?)",
+              [groupId, userId],
+              (err2) => {
+                if (err2) console.error("Error adding existing user to group:", err2);
+              }
+            );
+          } else {
+            // User doesn't exist, create user first then add to group
+            db.query(
+              "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
+              [name, email, null], // No password for contact users
+              (err3, userResult) => {
+                if (err3) {
+                  console.error("Error creating user from contact:", err3);
+                  return;
+                }
+
+                const newUserId = userResult.insertId;
+                db.query(
+                  "INSERT IGNORE INTO group_members (group_id, user_id) VALUES (?, ?)",
+                  [groupId, newUserId],
+                  (err4) => {
+                    if (err4) console.error("Error adding new user to group:", err4);
+                  }
+                );
+              }
+            );
+          }
+        });
+      });
+
+      // Return success after a short delay to ensure all members are processed
+      setTimeout(() => {
+        res.json({ 
+          message: "Group created successfully", 
+          group: { id: groupId, name, avatar, members: allMembers.length }
+        });
+      }, 100);
+    }
+  );
+});
+
+app.get("/groups", (req, res) => {
+  if (!req.session.user) return res.status(401).json({ message: "Unauthorized" });
+
+  const sql = `
+    SELECT g.id, g.name, g.avatar, COUNT(gm.user_id) as member_count
+    FROM groups g
+    JOIN group_members gm ON g.id = gm.group_id
+    WHERE g.id IN (SELECT group_id FROM group_members WHERE user_id = ?)
+    GROUP BY g.id
+    ORDER BY g.created_at DESC
+  `;
+
+  db.query(sql, [req.session.user.id], (err, rows = []) => {
+    if (err) {
+      console.error("Error fetching groups:", err);
+      return res.status(500).json({ message: "Failed to fetch groups" });
+    }
+
+    const groups = rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      avatar: row.avatar,
+      members: row.member_count,
+    }));
+
+    console.log("Groups fetched:", groups);
+    res.json(groups);
+  });
+});
+
+// CONTACTS ROUTES
+app.get("/contacts", (req, res) => {
+  if (!req.session.user) return res.status(401).json({ message: "Unauthorized" });
+
+  db.query(
+    "SELECT id, name, email FROM contacts WHERE user_id=? ORDER BY created_at DESC",
+    [req.session.user.id],
+    (err, rows = []) => {
+      if (err) {
+        console.error("Error fetching contacts:", err);
+        return res.status(500).json({ message: "Failed to fetch contacts" });
+      }
+      console.log("Contacts fetched:", rows);
+      res.json(rows || []);
+    }
+  );
+});
+
+app.post("/contacts/add", (req, res) => {
+  if (!req.session.user) return res.status(401).json({ message: "Unauthorized" });
+  const { name, email } = req.body;
+  if (!name || !email) return res.status(400).json({ message: "Name and Email required" });
+
+  db.query(
+    "INSERT INTO contacts (user_id, name, email) VALUES (?, ?, ?)",
+    [req.session.user.id, name, email],
+    (err, result) => {
+      if (err) {
+        console.error("Error adding contact:", err);
+        return res.status(500).json({ message: "Failed to add contact" });
+      }
+      res.json({ id: result.insertId, name, email });
+    }
+  );
+});
+
+// MESSAGES ROUTES
+app.get("/messages", (req, res) => {
+  const { receiver_email } = req.query;
+
+  if (!req.session.user) return res.status(401).json({ message: "Unauthorized" });
+  if (!receiver_email) return res.status(400).json({ message: "receiver_email required" });
+
+  const sql = `
+    SELECT id, sender_email, receiver_email, message, created_at, status
+    FROM messages 
+    WHERE (sender_email = ? AND receiver_email = ?) 
+       OR (sender_email = ? AND receiver_email = ?) 
+    ORDER BY created_at ASC
+  `;
+  const params = [req.session.user.email, receiver_email, receiver_email, req.session.user.email];
+
+  db.query(sql, params, (err, rows = []) => {
+    if (err) {
+      console.error("Error fetching messages:", err);
+      return res.status(500).json({ message: "Failed to fetch messages" });
+    }
+    res.json(rows || []);
+  });
+});
+
+// STATUS ROUTES
+app.post("/status", upload.single("file"), (req, res) => {
+  if (!req.session.user) return res.status(401).json({ message: "Unauthorized" });
+
+  const { type, text } = req.body;
+  let content = text || "";
+
+  if (req.file) {
+    content = `/Uploads/${req.file.filename}`;
+  }
+
+  if (!type || (!content && type !== "text")) return res.status(400).json({ message: "Invalid status" });
+
+  db.query(
+    "INSERT INTO statuses (user_id, type, content, created_at) VALUES (?, ?, ?, NOW())",
+    [req.session.user.id, type, content],
+    (err, result) => {
+      if (err) {
+        console.error("Error posting status:", err);
+        return res.status(500).json({ message: "Failed to post status" });
+      }
+
+      const statusId = result.insertId;
+
+      // Fetch the new status with user info
+      db.query(
+        "SELECT s.*, u.name, u.profile_picture FROM statuses s JOIN users u ON s.user_id = u.id WHERE s.id = ?",
+        [statusId],
+        (err2, rows = []) => {
+          if (err2 || rows.length === 0) {
+            return res.status(500).json({ message: "Failed to fetch posted status" });
+          }
+
+          const newStatus = rows[0];
+          res.json(newStatus);
+
+          // Emit to self
+          io.to(req.session.user.email).emit("newStatus", newStatus);
+
+          // Find contacts and emit to online ones
+          db.query(
+            "SELECT email FROM contacts WHERE user_id = ?",
+            [req.session.user.id],
+            (err3, contacts = []) => {
+              if (err3) return;
+              contacts.forEach((contact) => {
+                if (onlineUsers.has(contact.email)) {
+                  io.to(contact.email).emit("newStatus", newStatus);
+                }
+              });
+            }
+          );
+        }
+      );
+    }
+  );
+});
+
+app.get("/statuses", (req, res) => {
+  if (!req.session.user) return res.status(401).json({ message: "Unauthorized" });
+
+  const sql = `
+    SELECT s.*, u.name, u.profile_picture 
+    FROM statuses s 
+    JOIN users u ON s.user_id = u.id 
+    WHERE s.created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    AND (s.user_id = ? OR EXISTS (
+      SELECT 1 FROM contacts c 
+      WHERE c.user_id = s.user_id AND c.email = ?
+    ))
+    ORDER BY s.created_at DESC
+  `;
+
+  db.query(sql, [req.session.user.id, req.session.user.email], (err, rows = []) => {
+    if (err) {
+      console.error("Error fetching statuses:", err);
+      return res.status(500).json({ message: "Failed to fetch statuses" });
+    }
+    res.json(rows);
+  });
+});
+
+// const chatLimiter = rateLimit({
+//   windowMs: 60 * 1000, // 1 minute window
+//   max: 10, // limit each user to 10 requests per windowMs
+//   message: { error: "Too many requests. Please try again later." },
+//   keyGenerator: (req) => (req.session?.user?.email || req.ip),
+// });
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: {
+    error: "Too many requests. Please try again later."
+  },
+
+  keyGenerator: (req) => {
+    return req.session?.user?.email ||
+      ipKeyGenerator(req.ip);
+  },
+});
+app.post("/api/chat", chatLimiter, async (req, res) => {
+  try {
+    // 1. User authentication check
+    if (!req.session || !req.session.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // 2. Input validation for messages array
+    if (
+      !req.body.messages ||
+      !Array.isArray(req.body.messages) ||
+      !req.body.messages.every(
+        (m) =>
+          typeof m === "object" &&
+          typeof m.role === "string" &&
+          typeof m.content === "string"
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "messages must be an array of objects with 'role' and 'content' string properties",
+      });
+    }
+
+    // 3. API key existence check
+    if (!process.env.AI_CHAT_API_KEY) {
+      return res.status(500).json({ error: "AI chat API key not configured" });
+    }
+
+    let anthropicResponse;
+    try {
+      anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.AI_CHAT_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: req.body.messages,
+        }),
+      });
+    } catch (fetchError) {
+      console.error("Anthropic API network error:", fetchError);
+      return res.status(502).json({
+        error: "Upstream API/network error.",
+        details: fetchError.message,
+      });
+    }
+
+    // 4. Handle non-2xx Anthropic responses with extra detail
+    if (!anthropicResponse.ok) {
+      let errorText = "";
+      try {
+        errorText = await anthropicResponse.text();
+      } catch (e) {}
+      console.error(
+        "Anthropic API error:",
+        anthropicResponse.status,
+        errorText
+      );
+      return res.status(anthropicResponse.status).json({
+        error: "Anthropic API error",
+        details: errorText,
+      });
+    }
+    let data;
+    try {
+      data = await anthropicResponse.json();
+    } catch (parseErr) {
+      console.error("Failed to parse Anthropic response:", parseErr);
+      return res
+        .status(502)
+        .json({ error: "Invalid response from upstream API." });
+    }
+    res.json(data);
+  } catch (err) {
+    console.error("Error in /api/chat:", err);
+    res.status(500).json({
+      error: "Server error",
+      details: err.message,
+    });
+  }
+});
+
+// Start server
+const PORT = process.env.APP_PORT || 5000;
+server.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
