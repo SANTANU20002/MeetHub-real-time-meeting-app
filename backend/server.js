@@ -536,7 +536,7 @@ const sendOTPEmail = async (email, otp) => {
                       font-size:12px;
                       letter-spacing:0.4px;
                     ">
-                      © 2026 Your Company. All rights reserved.
+                      Thank you for join MeetHub
                     </p>
 
                   </td>
