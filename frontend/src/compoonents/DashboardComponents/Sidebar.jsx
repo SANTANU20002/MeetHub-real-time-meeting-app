@@ -76,7 +76,6 @@ const NAV_ITEMS = [
     ),
     badge: "AI",
   },
-  // Removed Photo Editor and Video Editor tabs
 ];
 
 const SECTION_DIVIDER_AFTER = 3;
@@ -226,8 +225,9 @@ function Sidebar() {
   };
 
   const mainItems = NAV_ITEMS.slice(0, SECTION_DIVIDER_AFTER + 1);
-  const toolItems = NAV_ITEMS.slice(SECTION_DIVIDER_AFTER + 1);
-
+  // Fetch the second-to-last item (last index - 1)
+  const toolItems = NAV_ITEMS.slice(SECTION_DIVIDER_AFTER + 1, -1);
+  const aiItems = NAV_ITEMS.slice(SECTION_DIVIDER_AFTER + 2);
   // Add custom CSS for .sidebar_section_idicate
   React.useEffect(() => {
     const styleTag = document.createElement('style');
@@ -275,7 +275,19 @@ function Sidebar() {
             />
           ))}
         </div>
+        <div style={styles.divider} />
+        <div style={styles.sectionLabel} className='sidebar_section_idicate'>&nbsp;&nbsp;AI</div>
 
+        <div style={styles.section}>
+          {aiItems.map((item) => (
+            <NavItem
+              key={item.index}
+              item={item}
+              isActive={selectedIndex === item.index}
+              onClick={handleClick}
+            />
+          ))}
+        </div>
       </div>
     </>
   );

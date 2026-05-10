@@ -637,3 +637,20 @@ renderInput={(params) => (
                   className="gm-textfield"
                   loading={contactsLoading}
                 />
+
+otp--------------------------------
+                const sendOTPEmail = async (email, otp) => {
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Your OTP for Signup",
+      text: `Your OTP for signup is: ${otp}. It is valid for 2 minutes.`,
+    };
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 OTP sent to ${email}`);
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+    throw new Error("Failed to send OTP email");
+  }
+};

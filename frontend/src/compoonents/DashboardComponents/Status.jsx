@@ -657,7 +657,7 @@ const Status = () => {
                 else if (offset.x > 100 || velocity.x > 100) prev();
               }}
               style={{
-                maxWidth: "90%", maxHeight: "90%",
+                maxWidth: "100%", maxHeight: "90%",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}
             >

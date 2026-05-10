@@ -358,15 +358,203 @@ io.on("connection", (socket) => {
 const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
 
 // Send OTP Email
+// const sendOTPEmail = async (email, otp) => {
+//   try {
+//     const mailOptions = {
+//       from: process.env.EMAIL_USER,
+//       to: email,
+//       subject: "Your OTP for Signup",
+//       text: `Your OTP for signup is: ${otp}. It is valid for 2 minutes.`,
+//     };
+//     await transporter.sendMail(mailOptions);
+//     console.log(`📧 OTP sent to ${email}`);
+//   } catch (error) {
+//     console.error("Error sending OTP email:", error);
+//     throw new Error("Failed to send OTP email");
+//   }
+// };
+
 const sendOTPEmail = async (email, otp) => {
   try {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Your OTP for Signup",
-      text: `Your OTP for signup is: ${otp}. It is valid for 2 minutes.`,
+      subject: "Verify Your Email - OTP Code",
+
+      html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>OTP Verification</title>
+      </head>
+
+      <body style="
+        margin:0;
+        padding:0;
+        background:#050816;
+        font-family:Arial, Helvetica, sans-serif;
+      ">
+
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td align="center" style="padding:50px 20px;">
+
+              <!-- Main Container -->
+              <table width="520" cellpadding="0" cellspacing="0" border="0"
+                style="
+                  background:#0b1120;
+                  border-radius:24px;
+                  overflow:hidden;
+                  border:1px solid rgba(0,212,255,0.2);
+                  box-shadow:
+                    0 0 30px rgba(0,212,255,0.15),
+                    0 0 60px rgba(0,212,255,0.08);
+                ">
+
+                <!-- Top Glow -->
+                <tr>
+                  <td style="
+                    height:6px;
+                    background:linear-gradient(90deg,#00d4ff,#0099ff,#00d4ff);
+                  "></td>
+                </tr>
+
+                <tr>
+                  <td style="padding:45px 40px;">
+
+                    <!-- Logo -->
+                    <table width="100%">
+                      <tr>
+                        <td align="center">
+
+                          <!-- Replace with your logo URL -->
+                          <img 
+                            src="https://raw.githubusercontent.com/SANTANU20002/MeetHub-real-time-meeting-app/main/frontend/src/assets/meethub-logo.png" 
+                            alt="MeetHub Logo"
+                            width="90"
+                            style="
+                              display:block;
+                              margin-bottom:20px;
+                            "
+                       
+                          />
+
+                          <h1 style="
+                            margin:0;
+                            color:#ffffff;
+                            font-size:32px;
+                            font-weight:700;
+                            letter-spacing:0.5px;
+                          ">
+                            Verify Your Email
+                          </h1>
+
+                          <p style="
+                            color:#9ca3af;
+                            font-size:16px;
+                            line-height:28px;
+                            margin:18px 0 0;
+                          ">
+                            Use the secure OTP below to complete your signup process.
+                          </p>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- OTP Box -->
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td align="center" style="padding:40px 0;">
+
+                          <div style="
+                            display:inline-block;
+                            padding:20px 38px;
+                            border-radius:18px;
+                            background:linear-gradient(135deg,#00d4ff,#0099ff);
+                            color:#ffffff;
+                            font-size:40px;
+                            font-weight:bold;
+                            letter-spacing:12px;
+                            box-shadow:
+                              0 0 20px rgba(0,212,255,0.5),
+                              inset 0 0 12px rgba(255,255,255,0.2);
+                          ">
+                            ${otp}
+                          </div>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Info -->
+                    <table width="100%">
+                      <tr>
+                        <td align="center">
+
+                          <p style="
+                            margin:0;
+                            color:#d1d5db;
+                            font-size:15px;
+                            line-height:28px;
+                          ">
+                            This OTP is valid for 
+                            <span style="color:#00d4ff;font-weight:bold;">
+                              2 minutes
+                            </span>.
+                          </p>
+
+                          <p style="
+                            margin-top:28px;
+                            color:#6b7280;
+                            font-size:13px;
+                            line-height:24px;
+                          ">
+                            If you didn’t request this email, you can safely ignore it.
+                          </p>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td align="center" style="
+                    padding:22px;
+                    border-top:1px solid rgba(255,255,255,0.06);
+                    background:#070b14;
+                  ">
+
+                    <p style="
+                      margin:0;
+                      color:#6b7280;
+                      font-size:12px;
+                      letter-spacing:0.4px;
+                    ">
+                      © 2026 Your Company. All rights reserved.
+                    </p>
+
+                  </td>
+                </tr>
+
+              </table>
+
+            </td>
+          </tr>
+        </table>
+
+      </body>
+      </html>
+      `,
     };
+
     await transporter.sendMail(mailOptions);
+
     console.log(`📧 OTP sent to ${email}`);
   } catch (error) {
     console.error("Error sending OTP email:", error);

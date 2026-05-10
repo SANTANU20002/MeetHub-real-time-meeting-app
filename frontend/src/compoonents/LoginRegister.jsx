@@ -520,7 +520,7 @@ const LoginRegister = () => {
                 {regStep === 2 && (
                   <>
                     <label style={styles.label}>Verification Code</label>
-                    <FocusInput placeholder="Enter 6-digit code" value={otp} onChange={(e) => setOtp(e.target.value)} />
+                    <FocusInput placeholder="Enter 4-digit code" value={otp} onChange={(e) => setOtp(e.target.value)} />
                     <div style={styles.otpHint}>
                       Sent to <span style={{ color: "rgba(255,255,255,0.6)" }}>{regEmail}</span>
                     </div>
