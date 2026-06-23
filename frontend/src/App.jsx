@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import axios from "axios";
 import LoginRegister from "./compoonents/LoginRegister";
 import Dashboard from "./compoonents/Dashboard";
-import loadinng from "../src/assets/loading.mp4";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -28,32 +27,8 @@ function App() {
       .finally(() => setLoading(false));
   }, []);
 
-  const [showLoading, setShowLoading] = useState(true);
 
-  useEffect(() => {
-    if (loading) {
-      const timer = setTimeout(() => {
-        setShowLoading(false);
-      }, 5000); // 1 minute = 60,000 ms
-      return () => clearTimeout(timer);
-    } else {
-      setShowLoading(false);
-    }
-  }, [loading]);
 
-  if (showLoading) {
-    return (
-      <div className="loading-video-container" style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", width: "100vw" }}>
-        <video
-          src={loadinng}
-          autoPlay
-          loop
-          muted
-          style={{ width: "320px", height: "auto" }}
-        />
-      </div>
-    );
-  }
 
   return (
     <Router>
